@@ -2,6 +2,7 @@
 
 use once_cell::sync::OnceCell;
 use std::{cmp::Ordering, num::NonZero, sync::Mutex};
+use std::cmp::max;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
@@ -310,8 +311,11 @@ impl BinaryFunction for StringSubstring {
 
         let graphemes = string.graphemes(true).collect::<Vec<&str>>();
 
-        if start > graphemes.len() || start < 1 {
-            return None;
+        if start > graphemes.len() {
+            return Some(AnyDataValue::new_plain_string(String::new()));
+        }
+        if start < 1 {
+            return Some(AnyDataValue::new_plain_string(graphemes.join("")))
         }
 
         Some(AnyDataValue::new_plain_string(
@@ -482,17 +486,17 @@ impl TernaryFunction for StringSubstringLength {
 
         let graphemes = string.graphemes(true).collect::<Vec<&str>>();
 
-        if start > graphemes.len() || start < 1 {
-            return None;
+        if start > graphemes.len() {
+            return Some(AnyDataValue::new_plain_string(String::new()));
         }
 
         let length = usize::try_from(parameter_third.to_u64()?).ok()?;
         let end = start + length;
 
         let result = if end > graphemes.len() {
-            graphemes[(start - 1)..].join("")
+            graphemes[(max(start, 1) - 1)..].join("")
         } else {
-            graphemes[(start - 1)..(end - 1)].join("")
+            graphemes[(max(start, 1) - 1)..(end - 1)].join("")
         };
 
         Some(AnyDataValue::new_plain_string(result))
@@ -637,8 +641,10 @@ mod test {
 
         let start4 = AnyDataValue::new_integer_from_u64(4);
         let length4 = AnyDataValue::new_integer_from_u64(1);
+        let result4 = AnyDataValue::new_plain_string("".to_string());
         let actual_result4 = StringSubstringLength.evaluate(string.clone(), start4, length4);
-        assert!(actual_result4.is_none());
+        assert!(actual_result4.is_some());
+        assert_eq!(result4, actual_result4.unwrap());
 
         let start5 = AnyDataValue::new_integer_from_u64(1);
         let length5 = AnyDataValue::new_integer_from_u64(3);
@@ -656,8 +662,10 @@ mod test {
 
         let start7 = AnyDataValue::new_integer_from_u64(0);
         let length7 = AnyDataValue::new_integer_from_u64(4);
+        let result7 = AnyDataValue::new_plain_string("abc".to_string());
         let actual_result7 = StringSubstringLength.evaluate(string.clone(), start7, length7);
-        assert!(actual_result7.is_none());
+        assert!(actual_result7.is_some());
+        assert_eq!(result7, actual_result7.unwrap());
 
         let string_unicode = AnyDataValue::new_plain_string("loẅks".to_string());
         let start8 = AnyDataValue::new_integer_from_u64(3);
@@ -667,6 +675,13 @@ mod test {
             StringSubstringLength.evaluate(string_unicode.clone(), start8, length8);
         assert!(actual_result8.is_some());
         assert_eq!(result8, actual_result8.unwrap());
+
+        let start9 = AnyDataValue::new_integer_from_u64(0);
+        let length9 = AnyDataValue::new_integer_from_u64(3);
+        let result9 = AnyDataValue::new_plain_string("ab".to_string());
+        let actual_result9 = StringSubstringLength.evaluate(string.clone(), start9, length9);
+        assert!(actual_result9.is_some());
+        assert_eq!(result9, actual_result9.unwrap());
 
         let string_notstring = AnyDataValue::new_integer_from_i64(1);
         let start_notstring = AnyDataValue::new_integer_from_u64(3);
